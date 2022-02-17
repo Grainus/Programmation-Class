@@ -4,9 +4,7 @@
 #include <string>
 #include <windows.h>
 
-#include "../cvm 21.h"
-
-using namespace std;
+#include <cvm 21.h>
 
 
 const size_t CLIENTS_MAX = 70;						// nombre maximal de clients
@@ -16,30 +14,56 @@ const double MARGE_CREDIT_MAX = 10000;				// marge de crédit maximun d'un compte
 const double SOLDE_COMPTE_MAX = 1000000;			// maximun à ne pas dépasser dans un compte d'un client
 
 
-enum class Commandes { ajouter, quitter, inconnue };// À COMPLÉTER AVEC LES AUTRES COMMANDES ...
+enum class Commandes { ajouter, afficher, depot, retrait, virement, liste, supprimer, quitter, inconnue };
 using Cmd = Commandes;
 
 struct Nom											// nom d'un client
 {
-	string prenom;
-	string nom;
+	std::string prenom;
+	std::string nom;
+};
+
+std::ostream& operator<<(std::ostream& os, const Nom& nom)
+{
+	os << "Nom: " << nom.prenom << ' ' << nom.nom;
+	return os;
 };
 
 struct Adresse										// adresse d'un client
 {
-	string noCivique;
-	string rue;
-	string ville;
-	string codePostal;
+	std::string noCivique;
+	std::string rue;
+	std::string ville;
+	std::string codePostal;
 };
+
+std::string stringindent(std::string, std::string, int, int);
+std::ostream& operator<<(std::ostream& os, const Adresse& adresse)
+{
+	os << std::left
+		<< stringindent("#", adresse.noCivique, 5, 22) << '\n'
+		<< stringindent("Rue", adresse.rue, 5, 22) << '\n'
+		<< stringindent("Ville", adresse.ville, 5, 22) << '\n'
+		<< stringindent("CP", adresse.codePostal, 5, 22);
+	return os;
+}
 
 struct Personne										// informations personnelles d'un client
 {
 	Nom		nom;
 	Adresse	adresse;
-	string	telephone;
-	string	nas;
+	std::string	telephone;
+	std::string	nas;
 };
+
+std::ostream& operator<<(std::ostream& os, const Personne& personne)
+{
+	os << std::left
+		<< personne.adresse << '\n'
+		<< stringindent("Tel", personne.telephone, 5, 22) << '\n'
+		<< stringindent("NAS", personne.nas, 5, 22);
+	return os;
+}
 
 struct Compte										// un compte d'un client
 {
@@ -52,6 +76,7 @@ struct Client										// informations relatives à un client
 	Personne	info;
 	Compte		comptes[COMPTES_MAX];
 	time_t		date;								// date d'ajout du client
+	 
 };
 
 struct Banque										// La banque de clients
@@ -76,6 +101,9 @@ void io_bip();
 void io_clean();
 double io_round(double v, size_t p = 2);			// par defaut la précision est à deux décimales (p = 2)
 
+
+
+
 /*
 	Suggestion de fonctions:
 
@@ -98,8 +126,8 @@ void io_bip() { Beep(200, 300); }
 
 void io_clean()										// pour vider les 2 tampons
 {
-	cin.clear();									// s'assure que le cin est remis en marche
-	cin.ignore(cin.rdbuf()->in_avail());			// vide le tampon du cin
+	std::cin.clear();									// s'assure que le cin est remis en marche
+	std::cin.ignore(std::cin.rdbuf()->in_avail());			// vide le tampon du cin
 	while (_kbhit()) (void)_getch();				// vide le tampon de la console
 }
 
@@ -113,6 +141,11 @@ double io_round(double v, size_t p)					// valeur et précision
 /* ----------------------------------------------------------------------- */
 /* FONCTIONS GÉNÉRALES POUR L'INTERFACE USAGER (UI) EN LECTURE OU ÉCRITURE */
 /* ----------------------------------------------------------------------- */
+
+std::string stringindent(const std::string name, const std::string value, const int before, const int total)
+{
+	return std::string(before, ' ') + name + std::string(total - name.size() - before, ' ') + ": " + value;
+}
 
 void afficherMenu()
 {
@@ -179,11 +212,14 @@ void cmd_quitter( /* Paramètres ? */)
 int main()
 {
 	setcp(1252);
-	cout << fixed << setprecision(2);
+	std::cout << std::fixed << std::setprecision(2);
 
 	Cmd cmd = Cmd::inconnue;
 
 	Banque& b = *new Banque;	// création dynamique d'une Banque
+
+	Personne pers = { {"***REMOVED***", "***REMOVED***"}, {"Civ", "Rue", "Ville", "Post"}, "Tel", "Ass" };
+	std::cout << pers;
 
 	do
 	{
