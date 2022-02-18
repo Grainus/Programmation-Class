@@ -133,23 +133,47 @@ void output_move(const Move);		// Affiche le déplacement du joueur
 void draw_case(LC);					// Affiche une case du jeu
 void draw_cursor(LC);				// Affiche le curseur
 void draw_initial();				// Affiche le damier en entier pour le début du programme
-int move(const Arrowkeys);			// Déplace le curseur et retourne 1 si le score augmente
+bool cursor_move(const Ak, Move&);	// Déplace le curseur, update le damier, et return si le score doit être augmenté
 void endgame(const int, const int, const time_t);	// Écran de fin de partie
 void center(const std::string, const int);			// Centrer du texte sur l'écran
 
- // DÉFINITION DES FONCTIONS
+ // FONCTIONS BASIQUES
 
 XY LC_to_XY(const LC lc)
 {
 	return XY({ START_X + (lc.c * DELTA_X) , START_Y + (lc.l * DELTA_Y) });
 }
 
+LC& LC_plusegal(LC& left, const LC& right)
+{
+	left.l += right.l;
+	left.c += right.c;
+	return left;
+}
+
+// Explication: left est passé par valeur, alors += est effectué sur une copie
+LC LC_plus(LC left, const LC& right)
+{
+	LC_plusegal(left, right);
+	return left;
+}
+
+// Overload de gotoxy pour accepter une valeur de type XY
+void gotoxy(XY xy)
+{
+	gotoxy(xy.x, xy.y);
+	return;
+}
+
+ // DÉFINITION DES FONCTIONS
+
+
 void center(const std::string text, const int yoffset)
 {
 	gotoxy(WIN_X / 2 - text.size() / 2, yoffset);
 	std::cout << text;
+	return;
 }
-
 
 LC ak_to_delta(const Ak key)
 {
@@ -168,11 +192,22 @@ LC ak_to_delta(const Ak key)
 	return delta;
 }
 
-LC& LC_plusegal(LC& left, const LC& right)
+void output_score(const int score)
 {
-	left.l += right.l;
-	left.c += right.c;
-	return left;
+	XY score_ouput = LC_to_XY(LC({ LIG, COL }));
+	score_ouput.x -= SPACE_X + 7 + (score >= 10 ? 1 : 0);	//Déplacement à gauche dynamique
+
+	gotoxy(score_ouput);
+	setcolor(Color::grn);
+	std::cout << "$$$$ : " << score;
+}
+
+void output_move(const Move move)
+{
+	gotoxy(LC_to_XY(LC({ LIG, 0 })));
+	setcolor(Color::yel);
+	std::cout << "move: (" << move.from.l << ',' << move.from.c << ") --> (" << move.to.l << ',' << move.to.c << ')';
+	return;
 }
 
 bool check_move(const Ak key, const LC current)
@@ -197,36 +232,125 @@ int count_moves(const LC current)
 	return moves;
 }
 
-// Explication: left est passé par valeur, alors += est effectué sur une copie
-LC LC_plus(LC left, const LC& right)
+void draw_case(const LC coords)
 {
-	LC_plusegal(left, right);
-	return left;
+	XY consolepos = LC_to_XY(coords);
+	gotoxy(consolepos);
+
+	Case type = damier[coords.l][coords.c];
+	setcolor(map[type].color);
+	std::string line(CASE_X, map[type].c);
+
+	for (int lin = 0; lin < CASE_Y; ++lin) {
+		gotoxy(consolepos.x, consolepos.y++);
+		std::cout << line;
+	}
+
+	setcolor(Color::wht);
+	return;
+}
+
+void draw_cursor(const LC coords)
+{
+	XY consolepos = LC_to_XY(coords);
+	gotoxy(consolepos);
+	setcolor(Color::yel);
+	std::cout << cursor[0][0]						//Top left
+		<< std::string(CASE_X - 2, cursor[0][1])	//Top middle
+		<< cursor[0][2];							//Top right
+
+	gotoxy(consolepos.x, consolepos.y + 1);
+	for (int y = 1; y < CASE_Y; ++y) {
+		std::cout << cursor[1][0]					//Middle left
+			<< std::string(CASE_X - 2, cursor[1][1])//Middle center
+			<< cursor[1][2];
+		gotoxy(consolepos.x, consolepos.y + y);
+	}
+
+	std::cout << cursor[2][0]						//Bottom left
+		<< std::string(CASE_X - 2, cursor[2][1])	//Bottom middle
+		<< cursor[2][2];							//Bottom right
+
+	setcolor(Color::wht);
+	return;
+}
+
+void draw_initial()
+{
+	for (size_t y = 0; y < COL; ++y)
+		for (size_t x = 0; x < LIG; ++x)
+			draw_case(LC({ x, y }));
+	output_score(0);
+	return;
+}
+
+bool cursor_move(const Ak key, Move& move)
+{
+	LC delta = ak_to_delta(key);
+	LC_plusegal(move.to, delta);
+	Case& state = damier[move.to.l][move.to.c];
+	bool addscore = (state == CD);
+	state = futur[state];
+	draw_case(move.from);
+	draw_cursor(move.to);
+	output_move(move);
+	return addscore;
+}
+
+void endgame(const int score, const int moves, const time_t starttime)
+{
+	clrscr();
+	gotoxy(0, 1);
+
+	if (score < 15) {
+		setcolor(Color::red);
+		std::cout << "\220CHEC !\n\n";
+	}
+	else {
+		setcolor(Color::grn);
+		std::cout << "VICTOIRE !\n\n";
+	}
+
+	std::cout << "\n\n"
+		<< "  Total des points\t    : " << score << " sur un objectif de " << 15
+		<< "\n  Total des d\202placements    : " << moves
+		<< "\n  Temps \202coul\202\t\t    : " << time(0) - starttime << " sec";
+
+	_getch();
+	return;
 }
 
 int main()
 {
 	setwsize(WIN_Y, WIN_X);								// Redimensionner la fenêtre de la console
-	show(true);											// Afficher (oui/non) le trait d'affichage de la console
+	show(false);										// Afficher (oui/non) le trait d'affichage de la console
+	draw_initial();
+	draw_cursor({});
 
-	Move m;
-	m.from = { 0,0 };									// Coordonnée logique {l,c} du curseur au départ du jeu
+	Move move = {};
+	int score = 0, movecount = 0;
+	time_t start = time(0);
 
 	center("D\220COUVREZ ET AMMASEZ 15 CASES $$$$", 2);
-	/*
+	
 	do {
 		uint8_t c = _getch();					// lire le premier code ascii du tampon
 		if (c == 0 || c == 224) {				// vérifier s'il s'agit du code réservé. Si oui, il faut lire le code suivant
 			if (_kbhit()) {
 				c = _getch();
-				if (game.check_move(Ak(c)))
-					game.move(Ak(c));
+				if (check_move(Ak(c), move.from))
+				{
+					if (cursor_move(Ak(c), move))// Les fonctions dans un if sont exécutées même si la valeur finit fausse
+					{
+						++score;
+						output_score(score);
+					}
+					move.from = move.to;
+					++movecount;
+				}
 			}
 		}
-		else {
-			// ici pour le traitement d'un caractère régulier
-		}
-	} while (game.count_moves() != 0 && game.score < MAXSCORE);
-	game.endgame();*/
 
+	} while (count_moves(move.to) != 0 && score < 15);
+	endgame(score, movecount, start);
 }
